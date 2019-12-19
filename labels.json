@@ -1,0 +1,13 @@
+{
+    ".\\Mass-Training_P_00001_LEFT_CC\\07-20-2016-DDSM-74994\\1-full mammogram images-24515\\000000.dcm": {
+        "bounding_rects": [
+            [
+                270,
+                2422,
+                391,
+                475
+            ]
+        ],
+        "pathology": "MALIGNANT"
+    }
+}

@@ -1,0 +1,4 @@
+pandas
+pydicom
+opencv-python
+tqdm  # optional: progress bars
