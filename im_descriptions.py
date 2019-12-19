@@ -6,7 +6,7 @@ from collections import defaultdict, namedtuple
 import pandas as pd
 
 try:
-    import tqdm
+    from tqdm import tqdm
 except ImportError:
     def tqdm(it, *args, **kwargs):
         return iter(it)
@@ -43,13 +43,6 @@ def get_im_description(im_root):
     return re.search(regex, im_root).groups()
 
 
-def is_cropped(im_path):
-    """If the file is less than 1 MB it's *most likely* a cropped image.
-    Easier than querying the dataframe.
-    """
-    return os.path.getsize(im_path) < 2 ** 20
-
-
 _descriptions = {}
 def get_df(lesion_type, set_):
     if lesion_type == 'Calc':
@@ -64,11 +57,20 @@ def get_df(lesion_type, set_):
     return _descriptions[description_path]
 
 
+def is_cropped(lesion_type, set_, im_path):
+    df = get_df(lesion_type, set_)
+    im_root = get_im_root(im_path)
+    cropped_path = next(path for path in df['cropped image file path']
+                        if path.startswith(im_root))
+    # rstrip() to remove newlines:
+    return os.path.basename(im_path) == os.path.basename(cropped_path).rstrip()
+
+
 def get_pathology(lesion_type, set_, is_overlay, im_root):
     df = get_df(lesion_type, set_)
     col_name = 'ROI mask file path' if is_overlay else 'image file path'
     return (df[[path.startswith(im_root) for path in df[col_name]]]
-                .iat[0, df.get_loc('pathology')])
+                .iat[0, df.columns.get_loc('pathology')])
 
 
 def add_im_description(im_descriptions, im_path):
@@ -83,11 +85,11 @@ def add_im_description(im_descriptions, im_path):
         mask_path,
     ]
     """
-    if is_cropped(im_path):
-        return
     im_root = get_im_root(im_path)
     lesion_type, set_, patient_id, direction, view, is_overlay = (
         get_im_description(im_root))
+    if is_cropped(lesion_type, set_, im_path):
+        return
     im_key = (patient_id, direction, view)
     im_type = 'mask_path' if is_overlay else 'path'
     if im_key in im_descriptions:

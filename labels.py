@@ -6,7 +6,7 @@ import pandas as pd
 import pydicom
 
 try:
-    import tqdm
+    from tqdm import tqdm
 except ImportError:
     def tqdm(it, *args, **kwargs):
         return iter(it)
@@ -20,6 +20,7 @@ LABELS_PATH = 'labels.json'
 
 def get_bounding_rects(mask_path):
     mask = pydicom.dcmread(mask_path).pixel_array
+    mask = (mask / 256).astype('uint8')
     contours, hierarchy = cv2.findContours(
         mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     rects = (Rect(*cv2.boundingRect(contour)) for contour in contours)

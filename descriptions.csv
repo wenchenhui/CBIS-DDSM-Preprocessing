@@ -1,2 +1,2 @@
-,lesion_type,set,patient_id,direction,view,pathology,path,mask_path
-0,Mass,Training,P_00001,LEFT,CC,MALIGNANT,.\Mass-Training_P_00001_LEFT_CC\07-20-2016-DDSM-74994\1-full mammogram images-24515\000000.dcm,.\Mass-Training_P_00001_LEFT_CC_1\07-21-2016-DDSM-39106\1-ROI mask images-99650\000000.dcm
+,lesion_type,set,patient_id,direction,view,pathology,mask_path
+0,Mass,Training,P_00001,LEFT,CC,MALIGNANT,.\Mass-Training_P_00001_LEFT_CC_1\07-21-2016-DDSM-39106\1-ROI mask images-99650\000001.dcm
