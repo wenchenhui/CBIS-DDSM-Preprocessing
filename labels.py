@@ -1,15 +1,11 @@
 import json
+import sys
 from collections import namedtuple
 
 import cv2
 import pandas as pd
 import pydicom
-
-try:
-    from tqdm import tqdm
-except ImportError:
-    def tqdm(it, *args, **kwargs):
-        return iter(it)
+from tqdm import tqdm
 
 Rect = namedtuple('Rect', ['x', 'y', 'w', 'h'])
 
@@ -20,7 +16,6 @@ LABELS_PATH = 'labels.json'
 
 def get_bounding_rects(mask_path):
     mask = pydicom.dcmread(mask_path).pixel_array
-    mask = (mask / 256).astype('uint8')
     contours, hierarchy = cv2.findContours(
         mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     rects = (Rect(*cv2.boundingRect(contour)) for contour in contours)
@@ -47,12 +42,15 @@ def show_bounding_rects(im_path):
     plt.show()
 
 if __name__ == "__main__":
-    im_descriptions = pd.read_csv(IM_DESCRIPTIONS_PATH)
-    labels = {
-        im.path: {
-            'bounding_rects': get_bounding_rects(im.mask_path),
-            'pathology': im.pathology,
-        } for im in tqdm(im_descriptions.itertuples())
-    }
-    with open(LABELS_PATH, mode='w') as f:
-        json.dump(labels, f)
+    if len(sys.argv) == 2:  # e.g. py labels.py 000000.dcm
+        show_bounding_rects(sys.argv[1])
+    else:
+        im_descriptions = pd.read_csv(IM_DESCRIPTIONS_PATH)
+        labels = {
+            im.path: {
+                'bounding_rects': get_bounding_rects(im.mask_path),
+                'pathology': im.pathology,
+            } for im in tqdm(im_descriptions.itertuples())
+        }
+        with open(LABELS_PATH, mode='w') as f:
+            json.dump(labels, f)

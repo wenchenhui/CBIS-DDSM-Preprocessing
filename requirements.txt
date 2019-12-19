@@ -2,3 +2,4 @@ pandas
 pydicom
 opencv-python
 tqdm  # optional: progress bars
+matplotlib  # optional: show images

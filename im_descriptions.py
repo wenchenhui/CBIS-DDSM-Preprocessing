@@ -2,32 +2,34 @@ import glob
 import os
 import re
 from collections import defaultdict, namedtuple
+from functools import lru_cache
 
 import pandas as pd
-
-try:
-    from tqdm import tqdm
-except ImportError:
-    def tqdm(it, *args, **kwargs):
-        return iter(it)
+from tqdm import tqdm
 
 DATASET_PATH = '.'
+DESCRIPTIONS_PATHS = {
+    ('Calc', 'Test'): 'descriptions/calc_case_description_test_set.csv',
+    ('Calc', 'Training'): 'descriptions/calc_case_description_train_set.csv',
+    ('Mass', 'Test'): 'descriptions/mass_case_description_test_set.csv',
+    ('Mass', 'Training'): 'descriptions/mass_case_description_train_set.csv',
+}
 IM_DESCRIPTIONS_PATH = 'descriptions.csv'
 
-CALC_TEST_DESC_PATH = 'descriptions/calc_case_description_test_set.csv'
-CALC_TRAIN_DESC_PATH = 'descriptions/calc_case_description_train_set.csv'
-MASS_TEST_DESC_PATH = 'descriptions/mass_case_description_test_set.csv'
-MASS_TRAIN_DESC_PATH = 'descriptions/mass_case_description_train_set.csv'
 
-
-def get_mass_im_paths(dataset_path):
-    """Return an iterator over dcm filepaths contained in directories
-    whose names start with 'Mass' (so calcification images are
-    excluded), and rooted at `dataset_path`.
+def get_im_paths(dataset_path, substr=None):
+    """Return an iterator over dcm filepaths contained in directories whose
+    names contain `substr` (so if `substr='Calc'` then only calcification
+    images are included), and are rooted at `dataset_path`.
     """
+    dir_pattern = ('**', f'*{substr}*', '**') if substr else ('**',)
     return glob.iglob(
-        os.path.join(dataset_path, '**', 'Mass*', '**', '*.dcm'),
+        os.path.join(dataset_path, *dir_pattern, '*.dcm'),
         recursive=True)
+
+
+def is_cropped2(im_path):
+    return os.path.getsize(im_path) < 5 * 2 ** 20  # B = 5 MB
 
 
 def get_im_root(im_path):
@@ -43,34 +45,25 @@ def get_im_description(im_root):
     return re.search(regex, im_root).groups()
 
 
-_descriptions = {}
+@lru_cache(maxsize=4)
 def get_df(lesion_type, set_):
-    if lesion_type == 'Calc':
-        description_path = (CALC_TEST_DESC_PATH if set_ == 'Test'
-                            else CALC_TRAIN_DESC_PATH)
-    else:
-        description_path = (MASS_TEST_DESC_PATH if set_ == 'Test'
-                            else MASS_TRAIN_DESC_PATH)
-    # Lazy initialization of dataframes:
-    if description_path not in _descriptions:
-        _descriptions[description_path] = pd.read_csv(description_path)
-    return _descriptions[description_path]
+    return pd.read_csv(DESCRIPTIONS_PATHS[(lesion_type, set_)])
 
 
-def is_cropped(lesion_type, set_, im_path):
+def is_cropped(lesion_type, set_, im_root, im_name):
     df = get_df(lesion_type, set_)
-    im_root = get_im_root(im_path)
     cropped_path = next(path for path in df['cropped image file path']
                         if path.startswith(im_root))
     # rstrip() to remove newlines:
-    return os.path.basename(im_path) == os.path.basename(cropped_path).rstrip()
+    return os.path.basename(cropped_path.rstrip()) == im_name
 
 
 def get_pathology(lesion_type, set_, is_overlay, im_root):
     df = get_df(lesion_type, set_)
     col_name = 'ROI mask file path' if is_overlay else 'image file path'
-    return (df[[path.startswith(im_root) for path in df[col_name]]]
-                .iat[0, df.columns.get_loc('pathology')])
+    i_row = next(i for (i, path) in df[col_name].items()
+                 if path.startswith(im_root))
+    return df.at[i_row, 'pathology']
 
 
 def add_im_description(im_descriptions, im_path):
@@ -85,11 +78,15 @@ def add_im_description(im_descriptions, im_path):
         mask_path,
     ]
     """
+    if is_cropped2(im_path):
+        return
     im_root = get_im_root(im_path)
     lesion_type, set_, patient_id, direction, view, is_overlay = (
         get_im_description(im_root))
-    if is_cropped(lesion_type, set_, im_path):
+    """if is_overlay and is_cropped(lesion_type, set_, im_root,
+                                 os.path.basename(im_path)):
         return
+    """
     im_key = (patient_id, direction, view)
     im_type = 'mask_path' if is_overlay else 'path'
     if im_key in im_descriptions:
@@ -108,7 +105,7 @@ def add_im_description(im_descriptions, im_path):
 
 def get_im_descriptions(dataset_path):
     im_descriptions = {}
-    for im_path in tqdm(get_mass_im_paths(dataset_path)):
+    for im_path in tqdm(get_im_paths(dataset_path, 'Mass')):
         add_im_description(im_descriptions, im_path)
     return pd.DataFrame(im_descriptions.values())
 
