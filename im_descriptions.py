@@ -16,6 +16,10 @@ DESCRIPTIONS_PATHS = {
 }
 IM_DESCRIPTIONS_PATH = 'descriptions.csv'
 
+# The largest mask image is 21,231,244 B, however for mass images it's
+# 2,351,196 B:
+IM_SIZE_TRESH = 3 * 2 ** 20 # B = 3 MB
+
 
 def get_im_paths(dataset_path, substr=None):
     """Return an iterator over dcm filepaths contained in directories whose
@@ -29,7 +33,10 @@ def get_im_paths(dataset_path, substr=None):
 
 
 def is_cropped2(im_path):
-    return os.path.getsize(im_path) < 5 * 2 ** 20  # B = 5 MB
+    """The largest mask image is 21,231,244 B, however for mass images it's
+    2,351,196 B.
+    """
+    return os.path.getsize(im_path) < IM_SIZE_TRESH
 
 
 def get_im_root(im_path):
@@ -75,7 +82,7 @@ def add_im_description(im_descriptions, im_path):
         view,
         pathology,
         path,
-        mask_path,
+        mask_path: List,
     ]
     """
     if is_cropped2(im_path):
@@ -89,9 +96,7 @@ def add_im_description(im_descriptions, im_path):
     """
     im_key = (patient_id, direction, view)
     im_type = 'mask_path' if is_overlay else 'path'
-    if im_key in im_descriptions:
-        im_descriptions[im_key][im_type] = im_path
-    else:
+    if im_key not in im_descriptions:
         im_descriptions[im_key] = {
             'lesion_type': lesion_type,
             'set': set_,
@@ -99,8 +104,14 @@ def add_im_description(im_descriptions, im_path):
             'direction': direction,
             'view': view,
             'pathology': get_pathology(lesion_type, set_, is_overlay, im_root),
-            im_type: im_path
         }
+    if is_overlay:  # is mask:
+        if 'mask_path' in im_descriptions[im_key]:
+            im_descriptions[im_key]['mask_path'].append(im_path)
+        else:
+            im_descriptions[im_key]['mask_path'] = [im_path]
+    else:
+        descriptions[im_key]['path'] = im_path
 
 
 def get_im_descriptions(dataset_path):
